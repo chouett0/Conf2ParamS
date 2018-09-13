@@ -1,0 +1,22 @@
+hostname
+
+vlan
+ - name
+
+interface
+ - description
+ - medix
+ - storm-control
+ - switchport {mode && access || trunk} *
+ - ip access-group
+
+route
+
+access-list
+ - list
+
+snmp-server
+
+logging
+
+ntp server
