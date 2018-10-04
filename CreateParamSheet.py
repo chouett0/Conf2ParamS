@@ -4,6 +4,7 @@
 import csv
 import os
 import sys
+import re
 import openpyxl
 
 # 使用方法を表示する際のテンプレート
@@ -152,8 +153,10 @@ def main():
     print(_USAGE)
     exit(1)
 
-  CommandValue = ["hostname", "interface", "ip route", "ip access-list", "ntp"]
-  SubCommValue = ["address", "storm-control", "host", "standard telnet", "switchport"]
+#  CommandValue = ["hostname", "interface", "ip route", "ip access-list", "ntp"]
+  CommandValue = ["hostname", "interface"]
+  SubCommValue = ["address", "switchport", "shutdown", "mdi"]
+
 
   # 引数に初期化用の情報を与えてParseConfigのインスタンス作成
   filepath = sys.argv[1]
@@ -162,7 +165,7 @@ def main():
   # コンフィグファイルリストの取得
   files = pc.getDir()
 
-  print("[*] Dumping config to CSV...")
+  print("[*] Dumping config to Excel File...")
   # ファイルを一つずつ処理
   for file in files:
       print("Start dump config: %s" % file)
@@ -175,21 +178,56 @@ def main():
 
       wb.titile = "Parameter"
 
-      # デバッグ用print
-
       for comm_key, comm_val in Command.items():
-#            print("comm_key: ", comm_key)
-            ws.append([comm_key])
-            for row in comm_val:
-#              print("\tvalue: ", row)
-              ws.append(["", row])
-              if (not (row in SubComm.keys())):
-                    continue
-              for sub_command in SubComm[str(row)]:
-                    for pat_key in SubCommValue:
-                          if (pat_key in sub_command):
-                                #print("\t\tPat Match: ", sub_command)
-                                ws.append(["", "", sub_command])
+            print("comm_key: ", comm_key)
+
+            if (comm_key is "hostname"):
+                  hostname = ws["B1"]
+                  hostname.font = openpyxl.styles.Font(size=20)
+                  hostname.value = comm_val[0][1:-1]
+                  ws.append([""])
+                  continue
+
+            if (comm_key is "interface"):
+                  ws.append(["インターフェース情報"])
+                  ws.append(["ポート", "speed", "duplex", "mdi", "shatdown", "モード", "vlanID"])
+
+                  for row in comm_val:
+                        print("port : ", row)
+                        line = [row]
+                        if (not (row in SubComm.keys()) or ("vlan" in row)):
+                              ws.append(line)
+                              continue
+
+                        # speed
+                        try:
+                              line.extend([re.search('(auto|\d{2,4})', [value for value in SubComm[str(row)] if re.match('speed (\w+)$', value)][0]).group(0)])
+                        except:
+                              line.append("")
+
+                        # duplex
+                        try:
+                              line.extend([re.search("(full|half|auto)", [value for value in SubComm[str(row)] if re.match("duplex (\w{4})", value)][0]).group(0)])
+                        except:
+                              line.append("")
+
+                        # MDI/MDIX
+                        line.append("mdi" if "no " in [value for value in SubComm[str(row)] if re.search(".*(mdix auto)", value)] else "mdix")
+
+                        # shutdown
+                        line.append("shutdown" if "shutdown" in SubComm[str(row)] else "")
+
+                        # VLAN mode
+                        line.extend([re.search("(access|trunk|stack)$", [value for value in SubComm[str(row)] if re.match('.*(access|trunk|stack)$', value)][0]).group(0)])
+
+                        # VLANID
+                        try:
+                              line.extend([re.search("\d{1,3}([,]|[-])*(\d{1,3}([,]|[-])*)+", [value for value in SubComm[str(row)] if re.match("switchport (access vlan |trunk allowed vlan ).*", value)][0]).group(0)])
+                        except:
+                              line.append("")
+
+#                        print(line)
+                        ws.append(line)
 
       wb.save(".\\Result\\" + file[:-3] + "xlsx")
 
